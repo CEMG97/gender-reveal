@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<!--
+=====================================================================================
+  💙💗  REVELACIÓN DE GÉNERO — GUÍA DE CONFIGURACIÓN (LÉEME PRIMERO)  💗💙
+=====================================================================================
+
+  Esta página funciona SOLA en "Modo demostración" aunque no configures nada
+  (los votos se guardan solo en tu navegador). Para que TODA la familia comparta
+  los votos EN VIVO necesitas conectar Firebase (gratis). Sigue estos pasos:
+
+  ─────────────────────────────────────────────────────────────────────────────────
+  PASO 1 — Crear un proyecto Firebase gratuito
+  ─────────────────────────────────────────────────────────────────────────────────
+  1. Entra a  https://console.firebase.google.com
+  2. Pulsa "Agregar proyecto" / "Add project", ponle un nombre (ej: "revelacion-bebe")
+     y completa el asistente. Puedes desactivar Google Analytics, no hace falta.
+
+  ─────────────────────────────────────────────────────────────────────────────────
+  PASO 2 — Activar Firestore (la base de datos)
+  ─────────────────────────────────────────────────────────────────────────────────
+  1. En el menú izquierdo:  Compilación (Build) → Firestore Database → "Crear base de datos".
+  2. Elige el modo "producción" (production mode) y la ubicación más cercana.
+  3. Cuando esté lista, ve a la pestaña "Reglas" (Rules) y PEGA exactamente las reglas
+     del archivo  firestore.rules  (también están al final de CONFIGURACION.md).
+     Pulsa "Publicar".
+
+  ─────────────────────────────────────────────────────────────────────────────────
+  PASO 3 — Crear los documentos iniciales (votos + secreto del género)
+  ─────────────────────────────────────────────────────────────────────────────────
+  En Firestore → "Datos" (Data), crea esto a mano (botón "Iniciar colección"):
+
+    • Colección:  reveal
+        - Documento con ID:  state      → campo:  revealed  (tipo boolean) = false
+        - Documento con ID:  secret     → campo:  gender    (tipo string)  = "boy"  o  "girl"
+                                          ⚠️  Aquí va tu SECRETO. Nadie podrá leerlo
+                                              hasta que tú actives la revelación (ver PASO 5).
+
+    (La colección "votes" se crea sola con el primer voto, no tienes que tocarla.)
+
+  ─────────────────────────────────────────────────────────────────────────────────
+  PASO 4 — Pegar tus credenciales en este archivo
+  ─────────────────────────────────────────────────────────────────────────────────
+  1. En la consola: ⚙️ (Configuración del proyecto) → "Tus apps" → icono Web "</>".
+  2. Registra una app web (cualquier apodo) y copia el objeto  firebaseConfig.
+  3. Pega esos valores abajo, dentro de  FIREBASE_CONFIG  (reemplaza los "TU_...").
+     ✅ Estas claves SON PÚBLICAS por diseño; es seguro publicarlas. Lo que protege
+        tus datos son las REGLAS de Firestore, no las claves.
+
+  ─────────────────────────────────────────────────────────────────────────────────
+  PASO 5 — El día del evento: revelar (control del anfitrión)
+  ─────────────────────────────────────────────────────────────────────────────────
+  El género REAL nunca está en este código ni viaja al navegador de la familia:
+  vive en Firestore en  reveal/secret  y las reglas IMPIDEN leerlo hasta que tú
+  pongas  reveal/state.revealed = true. Hay dos formas de dispararlo:
+
+    OPCIÓN A (recomendada, la más simple y segura):
+      Abre la app con el enlace secreto de anfitrión:
+          tusitio.github.io/?host=TU_CLAVE_SECRETA
+      (define TU_CLAVE_SECRETA abajo en HOST_SECRET_KEY). Aparecerá un panel con el
+      botón "💥 Revelar ahora". Al pulsarlo, se actualiza reveal/state.revealed=true,
+      y la animación + el género real aparecen EN VIVO para todos.
+
+    OPCIÓN B (sin tocar reglas de escritura):
+      Cambia tú mismo  reveal/state.revealed  a  true  desde la consola de Firestore.
+      Todos verán la revelación al instante.
+
+  La cuenta regresiva NUNCA revela sola al llegar a cero: solo se revela cuando TÚ
+  lo dispares. ¡Listo! 🎉
+=====================================================================================
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Niño o Niña · Nuestra revelación</title>
+<meta name="description" content="Acompáñanos a descubrir si nuestro bebé es niño o niña." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================ TOKENS / TEMA ============================ */
+:root{
+  --blue-1:#dcefff; --blue-2:#a9d4ff; --blue-3:#6fb6f5; --blue-4:#3b87d6; --blue-ink:#1d5fa3;
+  --pink-1:#ffe3ef; --pink-2:#ffc1da; --pink-3:#f98fbd; --pink-4:#ec5f97; --pink-ink:#b83a6e;
+  --lav:#ede7ff; --peach:#ffe9dd; --mint:#e4f7ec; --sky:#dcefff; --blush:#ffe3ef; --butter:#fff6da;
+  --ink:#4a3f55; --ink-soft:#7c7088; --paper:#fffdfa;
+  --card:rgba(255,255,255,.62); --card-strong:rgba(255,255,255,.82);
+  --stroke:rgba(118,98,140,.16);
+  --shadow:0 18px 50px -20px rgba(108,76,130,.45);
+  --shadow-sm:0 8px 24px -12px rgba(108,76,130,.4);
+  --r-lg:34px; --r-md:24px; --r-sm:16px;
+  --maxw:1080px;
+  --font-display:'Baloo 2', system-ui, sans-serif;
+  --font-body:'Quicksand', system-ui, sans-serif;
+  --font-script:'Caveat', cursive;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{
+  font-family:var(--font-body);
+  color:var(--ink);
+  background:var(--lav);
+  overflow-x:hidden;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ============================ FONDO ANIMADO ============================ */
+/* gradiente suave en movimiento */
+#bg-gradient{
+  position:fixed; inset:-20% -20% -20% -20%; z-index:-3;
+  background:
+    radial-gradient(42% 50% at 18% 22%, var(--sky) 0%, transparent 60%),
+    radial-gradient(46% 52% at 84% 18%, var(--blush) 0%, transparent 62%),
+    radial-gradient(50% 55% at 78% 82%, var(--lav) 0%, transparent 60%),
+    radial-gradient(48% 52% at 12% 86%, var(--mint) 0%, transparent 60%),
+    radial-gradient(60% 60% at 50% 50%, var(--butter) 0%, transparent 70%),
+    linear-gradient(160deg, var(--peach), var(--lav));
+  filter:saturate(1.05);
+  animation:bgdrift 26s ease-in-out infinite alternate;
+}
+@keyframes bgdrift{
+  0%{transform:translate3d(-2%,-1%,0) scale(1.05);}
+  50%{transform:translate3d(2%,1.5%,0) scale(1.12);}
+  100%{transform:translate3d(-1.5%,2%,0) scale(1.06);}
+}
+/* globos flotantes */
+#bg-balloons{position:fixed; inset:0; z-index:-2; overflow:hidden; pointer-events:none;}
+.balloon{position:absolute; bottom:-22vh; width:64px; opacity:.55; animation:float linear infinite; will-change:transform;}
+.balloon svg{display:block; width:100%; height:auto; filter:drop-shadow(0 10px 14px rgba(108,76,130,.18));}
+@keyframes float{
+  0%{transform:translateY(0) translateX(0) rotate(-4deg);}
+  50%{transform:translateY(-62vh) translateX(22px) rotate(4deg);}
+  100%{transform:translateY(-128vh) translateX(-12px) rotate(-3deg);}
+}
+/* confeti (canvas a pantalla completa) */
+#confetti-canvas{position:fixed; inset:0; z-index:-1; pointer-events:none;}
+@media (prefers-reduced-motion: reduce){
+  #bg-gradient{animation:none;}
+  .balloon{animation-duration:0s !important; display:none;}
+}
+
+/* ============================ LAYOUT ============================ */
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px;}
+section{position:relative; padding:84px 0;}
+.section-tag{
+  display:inline-flex; align-items:center; gap:8px;
+  font-weight:700; font-size:.82rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-soft); background:var(--card-strong); border:1px solid var(--stroke);
+  padding:8px 16px; border-radius:999px; box-shadow:var(--shadow-sm);
+}
+h1,h2,h3{font-family:var(--font-display); font-weight:800; line-height:1.04; margin:0; color:#3c3148;}
+.card{background:var(--card-strong); border:1px solid var(--stroke); border-radius:var(--r-lg); box-shadow:var(--shadow); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);}
+
+/* ============================ HERO ============================ */
+.hero{padding-top:max(70px, env(safe-area-inset-top)); text-align:center; min-height:92vh; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.hero .kicker{font-family:var(--font-script); font-size:clamp(1.6rem,5vw,2.4rem); color:var(--pink-ink); transform:rotate(-3deg); margin-bottom:6px;}
+.hero h1{font-size:clamp(2.9rem, 11vw, 6.4rem); letter-spacing:-.01em;}
+.hero h1 .o{color:var(--ink-soft); -webkit-text-stroke:0; font-weight:600; display:inline-block; transform:translateY(-6%); padding:0 .12em;}
+.hero h1 .nino{background:linear-gradient(180deg,var(--blue-3),var(--blue-4)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.hero h1 .nina{background:linear-gradient(180deg,var(--pink-3),var(--pink-4)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.hero p.lead{max-width:640px; margin:24px auto 0; font-size:clamp(1.05rem,2.6vw,1.32rem); color:var(--ink); font-weight:500;}
+.hero .sig{font-family:var(--font-script); font-size:1.7rem; color:var(--ink-soft); margin-top:18px;}
+
+/* nombres teaser */
+.names{display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin-top:38px;}
+.name-card{flex:1 1 260px; max-width:330px; padding:22px 24px; border-radius:var(--r-md); display:flex; align-items:center; gap:16px; text-align:left;}
+.name-card .em{font-size:2.2rem; line-height:1;}
+.name-card .lbl{font-size:.78rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;}
+.name-card .nm{font-family:var(--font-script); font-size:2rem; font-weight:700; line-height:1;}
+.name-card.boy{background:linear-gradient(160deg, #f1f8ff, #dcefff); border:1px solid #bfe0ff;}
+.name-card.boy .lbl{color:var(--blue-ink);} .name-card.boy .nm{color:var(--blue-ink);}
+.name-card.girl{background:linear-gradient(160deg, #fff2f8, #ffe3ef); border:1px solid #ffcce0;}
+.name-card.girl .lbl{color:var(--pink-ink);} .name-card.girl .nm{color:var(--pink-ink);}
+
+.scroll-cue{margin-top:46px; display:inline-flex; flex-direction:column; align-items:center; gap:6px; color:var(--ink-soft); font-weight:600; font-size:.82rem; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; animation:bob 2.2s ease-in-out infinite;}
+.scroll-cue svg{width:26px;height:26px;}
+@keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(7px);}}
+
+/* ============================ VOTACIÓN ============================ */
+.vote-head{text-align:center; margin-bottom:36px;}
+.vote-head h2{font-size:clamp(2rem,6vw,3.1rem); margin-top:14px;}
+.vote-head p{color:var(--ink-soft); font-size:1.08rem; max-width:520px; margin:12px auto 0;}
+.vote-card{padding:clamp(24px,5vw,44px);}
+.field{margin-bottom:22px;}
+.field label{display:block; font-weight:700; margin-bottom:10px; color:#3c3148;}
+.field input{
+  width:100%; font-family:var(--font-body); font-size:1.12rem; font-weight:600; color:var(--ink);
+  padding:16px 20px; border-radius:var(--r-sm); border:2px solid var(--stroke); background:#fff;
+  transition:border-color .2s, box-shadow .2s; outline:none;
+}
+.field input::placeholder{color:#b7adc2; font-weight:500;}
+.field input:focus{border-color:var(--pink-3); box-shadow:0 0 0 5px rgba(249,143,189,.18);}
+.teams{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+.team-btn{
+  position:relative; overflow:hidden; cursor:pointer; border:none; border-radius:var(--r-md);
+  padding:30px 18px; font-family:var(--font-display); font-weight:800; font-size:clamp(1.15rem,3.4vw,1.7rem);
+  color:#fff; display:flex; flex-direction:column; align-items:center; gap:8px; line-height:1.1;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .2s, filter .2s;
+  box-shadow:var(--shadow); -webkit-tap-highlight-color:transparent;
+}
+.team-btn .big-em{font-size:2.6rem; line-height:1; filter:drop-shadow(0 6px 8px rgba(0,0,0,.12));}
+.team-btn small{font-weight:600; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; opacity:.92; font-family:var(--font-body);}
+.team-btn.boy{background:linear-gradient(160deg,var(--blue-3),var(--blue-4));}
+.team-btn.girl{background:linear-gradient(160deg,var(--pink-3),var(--pink-4));}
+.team-btn:hover{transform:translateY(-4px) scale(1.015);}
+.team-btn:active{transform:translateY(-1px) scale(.99);}
+.team-btn:disabled{cursor:not-allowed; filter:grayscale(.2) opacity(.6); transform:none;}
+.vote-note{text-align:center; color:var(--ink-soft); font-size:.9rem; margin-top:18px;}
+
+/* estado "ya votaste" */
+.voted-state{text-align:center; padding:clamp(28px,6vw,52px); display:none;}
+.voted-state.show{display:block; animation:popIn .5s cubic-bezier(.34,1.56,.64,1);}
+.voted-state .badge{font-size:3.4rem; display:block; margin-bottom:8px;}
+.voted-state h3{font-size:1.7rem; margin-bottom:8px;}
+.voted-state p{color:var(--ink-soft);}
+.voted-state .team-pill{display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:10px 20px; border-radius:999px; font-family:var(--font-display); font-weight:700; color:#fff;}
+@keyframes popIn{from{opacity:0; transform:scale(.85);}to{opacity:1; transform:scale(1);}}
+
+/* ============================ MARCADOR ============================ */
+.board-head{text-align:center; margin-bottom:34px;}
+.board-head h2{font-size:clamp(2rem,6vw,3.1rem); margin-top:14px;}
+.live-dot{display:inline-flex; align-items:center; gap:8px; color:var(--ink-soft); font-weight:700; font-size:.82rem; letter-spacing:.1em; text-transform:uppercase;}
+.live-dot i{width:10px;height:10px;border-radius:50%;background:#ff5d8f;box-shadow:0 0 0 0 rgba(255,93,143,.6);animation:pulse 1.8s infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,143,.55);}70%{box-shadow:0 0 0 12px rgba(255,93,143,0);}100%{box-shadow:0 0 0 0 rgba(255,93,143,0);}}
+
+.scoreboard{padding:clamp(22px,4vw,40px);}
+.score-row{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:26px;}
+.score-col{text-align:center; padding:22px 16px; border-radius:var(--r-md);}
+.score-col.boy{background:linear-gradient(160deg,#f1f8ff,#dcefff);}
+.score-col.girl{background:linear-gradient(160deg,#fff2f8,#ffe3ef);}
+.score-col .em{font-size:2rem;}
+.score-col .team-name{font-family:var(--font-display); font-weight:800; font-size:1.25rem; margin-top:2px;}
+.score-col.boy .team-name{color:var(--blue-ink);} .score-col.girl .team-name{color:var(--pink-ink);}
+.score-col .count{font-family:var(--font-display); font-weight:800; font-size:clamp(2.8rem,9vw,4rem); line-height:1; margin:6px 0 2px; transition:transform .35s cubic-bezier(.34,1.56,.64,1);}
+.score-col.boy .count{color:var(--blue-4);} .score-col.girl .count{color:var(--pink-4);}
+.score-col .count.bump{transform:scale(1.22);}
+.score-col .pct{font-weight:700; color:var(--ink-soft); font-size:.95rem;}
+
+/* medidor */
+.meter{position:relative; height:46px; border-radius:999px; overflow:hidden; background:#eee; box-shadow:inset 0 2px 8px rgba(108,76,130,.16); display:flex;}
+.meter .fill-boy{background:linear-gradient(90deg,var(--blue-3),var(--blue-4)); transition:width .9s cubic-bezier(.65,0,.35,1);}
+.meter .fill-girl{background:linear-gradient(90deg,var(--pink-4),var(--pink-3)); transition:width .9s cubic-bezier(.65,0,.35,1); margin-left:auto;}
+.meter .knot{position:absolute; top:50%; transform:translate(-50%,-50%); font-size:1.5rem; transition:left .9s cubic-bezier(.65,0,.35,1); z-index:2; filter:drop-shadow(0 2px 4px rgba(0,0,0,.18));}
+.meter-labels{display:flex; justify-content:space-between; margin-top:10px; font-weight:700; font-size:.85rem;}
+.meter-labels .l{color:var(--blue-ink);} .meter-labels .r{color:var(--pink-ink);}
+
+/* listas de nombres */
+.names-lists{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:28px;}
+.names-lists h4{font-family:var(--font-display); font-size:1rem; margin:0 0 12px; display:flex; align-items:center; gap:8px;}
+.names-lists .boy h4{color:var(--blue-ink);} .names-lists .girl h4{color:var(--pink-ink);}
+.chips{display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start; min-height:30px;}
+.chip{padding:7px 14px; border-radius:999px; font-weight:600; font-size:.9rem; animation:popIn .4s cubic-bezier(.34,1.56,.64,1);}
+.boy .chip{background:#dcefff; color:var(--blue-ink); border:1px solid #bfe0ff;}
+.girl .chip{background:#ffe3ef; color:var(--pink-ink); border:1px solid #ffcce0;}
+.chips .empty{color:var(--ink-soft); font-style:italic; font-size:.9rem; font-weight:500;}
+
+/* ============================ CUENTA REGRESIVA ============================ */
+.count-head{text-align:center; margin-bottom:34px;}
+.count-head h2{font-size:clamp(2rem,6vw,3.1rem); margin-top:14px;}
+.count-head p{color:var(--ink-soft); margin-top:10px;}
+.clock{display:flex; gap:clamp(10px,2.5vw,22px); justify-content:center; flex-wrap:wrap;}
+.unit{background:var(--card-strong); border:1px solid var(--stroke); border-radius:var(--r-md); box-shadow:var(--shadow); padding:clamp(16px,3vw,30px) clamp(14px,3vw,30px); min-width:clamp(76px,20vw,128px); text-align:center;}
+.unit .num{font-family:var(--font-display); font-weight:800; font-size:clamp(2.4rem,9vw,4.4rem); line-height:1; color:#3c3148; transition:transform .25s cubic-bezier(.34,1.56,.64,1); display:block;}
+.unit .num.tick{transform:scale(1.16);}
+.unit .lab{font-weight:700; font-size:.74rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); margin-top:8px;}
+.count-done{text-align:center; font-family:var(--font-display); font-weight:800; font-size:clamp(1.4rem,5vw,2.2rem); color:var(--pink-ink);}
+
+/* ============================ REVELACIÓN ============================ */
+.reveal-teaser{text-align:center; padding:clamp(30px,6vw,56px);}
+.reveal-teaser .lock{font-size:3rem; margin-bottom:10px;}
+.reveal-teaser h2{font-size:clamp(2rem,6vw,3.2rem);}
+.reveal-teaser p{color:var(--ink-soft); max-width:520px; margin:14px auto 0; font-size:1.06rem;}
+.reveal-teaser .wait{margin-top:22px; display:inline-flex; align-items:center; gap:10px; font-weight:700; color:var(--ink-soft); background:var(--card); border:1px solid var(--stroke); padding:12px 22px; border-radius:999px;}
+
+/* overlay de revelación */
+#reveal-overlay{position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; text-align:center; padding:24px;
+  background:radial-gradient(circle at 50% 40%, #fff8fb, #efe7ff); transition:background 1.2s ease;}
+#reveal-overlay.show{display:flex;}
+#reveal-overlay.boy{background:radial-gradient(circle at 50% 40%, #eaf5ff, #cfe7ff);}
+#reveal-overlay.girl{background:radial-gradient(circle at 50% 40%, #fff0f7, #ffd6e8);}
+.countdown-num{font-family:var(--font-display); font-weight:800; font-size:min(46vw,40vh); line-height:1; color:#3c3148;}
+.countdown-num.anim{animation:cdpop .95s cubic-bezier(.2,.8,.3,1);}
+@keyframes cdpop{0%{opacity:0; transform:scale(2.4); filter:blur(6px);}30%{opacity:1; transform:scale(1);filter:blur(0);}70%{opacity:1; transform:scale(1);}100%{opacity:0; transform:scale(.6);}}
+.reveal-result{display:none; flex-direction:column; align-items:center; gap:6px;}
+.reveal-result.show{display:flex; animation:popIn .8s cubic-bezier(.34,1.56,.64,1);}
+.reveal-result .big-em{font-size:min(28vw,22vh); line-height:1; filter:drop-shadow(0 14px 22px rgba(0,0,0,.14)); animation:bobBig 3s ease-in-out infinite;}
+@keyframes bobBig{0%,100%{transform:translateY(0) rotate(-3deg);}50%{transform:translateY(-14px) rotate(3deg);}}
+.reveal-result .it-is{font-family:var(--font-display); font-weight:800; font-size:clamp(2.6rem,12vw,6rem); line-height:1;}
+.reveal-result.boy .it-is{color:var(--blue-4);} .reveal-result.girl .it-is{color:var(--pink-4);}
+.reveal-result .baby-name{font-family:var(--font-script); font-weight:700; font-size:clamp(2.4rem,11vw,5rem); line-height:1; margin-top:4px;}
+.reveal-result.boy .baby-name{color:var(--blue-ink);} .reveal-result.girl .baby-name{color:var(--pink-ink);}
+.reveal-result .sub{margin-top:16px; color:var(--ink); font-weight:600; font-size:1.1rem;}
+
+/* panel de anfitrión */
+#host-panel{position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:70; display:none;
+  background:#2c2433; color:#fff; border-radius:20px; padding:16px 18px; box-shadow:0 20px 50px -16px rgba(0,0,0,.5); max-width:92vw;}
+#host-panel.show{display:block; animation:popIn .4s ease;}
+#host-panel .ttl{font-weight:700; font-size:.82rem; letter-spacing:.08em; text-transform:uppercase; opacity:.7; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+#host-panel .hbtns{display:flex; gap:10px; align-items:center;}
+#host-panel button{font-family:var(--font-display); font-weight:700; border:none; border-radius:12px; padding:12px 18px; cursor:pointer; font-size:1rem;}
+.btn-reveal{background:linear-gradient(135deg,var(--blue-3),var(--pink-3)); color:#fff;}
+.btn-reset{background:rgba(255,255,255,.12); color:#fff;}
+#host-panel .status{font-size:.8rem; opacity:.7; margin-top:10px;}
+
+/* banner demo */
+#demo-banner{position:fixed; top:0; left:0; right:0; z-index:50; background:linear-gradient(90deg,var(--blue-3),var(--pink-3)); color:#fff; text-align:center; font-weight:700; font-size:.82rem; padding:7px 14px; display:none; letter-spacing:.02em;}
+#demo-banner.show{display:block;}
+#demo-banner span{opacity:.92; font-weight:600;}
+
+footer{text-align:center; padding:50px 20px 70px; color:var(--ink-soft);}
+footer .heart{font-family:var(--font-script); font-size:1.5rem; color:var(--pink-ink);}
+
+@media (max-width:540px){
+  section{padding:64px 0;}
+  .names-lists{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- FONDOS -->
+<div id="bg-gradient"></div>
+<div id="bg-balloons"></div>
+<canvas id="confetti-canvas"></canvas>
+
+<!-- BANNER MODO DEMO -->
+<div id="demo-banner">✨ Modo demostración — los votos se guardan solo en este dispositivo. <span>Conecta Firebase para compartirlos en vivo (ver instrucciones en el código).</span></div>
+
+<!-- ============================ 1 · HERO ============================ -->
+<section class="hero">
+  <div class="wrap">
+    <div class="kicker">¡Llegó el gran momento!</div>
+    <h1><span class="nino">Niño</span> <span class="o">o</span> <span class="nina">Niña</span><span style="color:var(--ink-soft)">?</span></h1>
+    <p class="lead">Gracias por acompañarnos en esta aventura. Estamos a punto de descubrir si nuestro bebé es niño o niña — y queremos que lo vivas con nosotros. 💙💗</p>
+
+    <div class="names">
+      <div class="name-card boy card">
+        <div class="em">💙</div>
+        <div>
+          <div class="lbl">Si es niño…</div>
+          <div class="nm" id="hero-boy-name">Fabián Augusto</div>
+        </div>
+      </div>
+      <div class="name-card girl card">
+        <div class="em">💗</div>
+        <div>
+          <div class="lbl">Si es niña…</div>
+          <div class="nm" id="hero-girl-name">Isabella Carolina</div>
+        </div>
+      </div>
+    </div>
+
+    <a class="scroll-cue" href="#votar">
+      Vota por tu equipo
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- ============================ 2 · VOTACIÓN ============================ -->
+<section id="votar">
+  <div class="wrap">
+    <div class="vote-head">
+      <span class="section-tag">💫 Haz tu apuesta</span>
+      <h2>¿Tú qué crees que será?</h2>
+      <p>Escribe tu nombre y elige tu equipo. ¡Tu voto se suma al marcador en vivo!</p>
+    </div>
+
+    <div class="vote-card card" id="vote-form">
+      <div class="field">
+        <label for="voter-name">Tu nombre</label>
+        <input id="voter-name" type="text" maxlength="40" placeholder="Ej: Tía Carolina" autocomplete="name" />
+      </div>
+      <div class="teams">
+        <button class="team-btn boy" data-team="boy">
+          <span class="big-em">💙</span>
+          Equipo Niño
+          <small>Azul</small>
+        </button>
+        <button class="team-btn girl" data-team="girl">
+          <span class="big-em">💗</span>
+          Equipo Niña
+          <small>Rosa</small>
+        </button>
+      </div>
+      <p class="vote-note" id="vote-note">Un voto por persona 💕</p>
+    </div>
+
+    <div class="vote-card card voted-state" id="voted-state">
+      <span class="badge">🎉</span>
+      <h3>¡Gracias, <span id="voted-name">amig@</span>!</h3>
+      <p>Tu voto quedó registrado. Mira cómo va el marcador más abajo.</p>
+      <div class="team-pill" id="voted-pill"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 3 · MARCADOR ============================ -->
+<section id="marcador">
+  <div class="wrap">
+    <div class="board-head">
+      <span class="section-tag"><span class="live-dot"><i></i>En vivo</span></span>
+      <h2>El marcador de la familia</h2>
+    </div>
+
+    <div class="scoreboard card">
+      <div class="score-row">
+        <div class="score-col boy">
+          <div class="em">💙</div>
+          <div class="team-name">Equipo Azul</div>
+          <div class="count" id="count-boy">0</div>
+          <div class="pct" id="pct-boy">0%</div>
+        </div>
+        <div class="score-col girl">
+          <div class="em">💗</div>
+          <div class="team-name">Equipo Rosa</div>
+          <div class="count" id="count-girl">0</div>
+          <div class="pct" id="pct-girl">0%</div>
+        </div>
+      </div>
+
+      <div class="meter" id="meter">
+        <div class="fill-boy" id="fill-boy" style="width:50%"></div>
+        <div class="fill-girl" id="fill-girl" style="width:50%"></div>
+        <div class="knot" id="knot" style="left:50%">🎈</div>
+      </div>
+      <div class="meter-labels">
+        <span class="l">Azul</span>
+        <span style="color:var(--ink-soft)" id="total-votes">0 votos</span>
+        <span class="r">Rosa</span>
+      </div>
+
+      <div class="names-lists">
+        <div class="boy">
+          <h4>💙 Equipo Azul</h4>
+          <div class="chips" id="chips-boy"><span class="empty">Aún no hay votos…</span></div>
+        </div>
+        <div class="girl">
+          <h4>💗 Equipo Rosa</h4>
+          <div class="chips" id="chips-girl"><span class="empty">Aún no hay votos…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 4 · CUENTA REGRESIVA ============================ -->
+<section id="cuenta">
+  <div class="wrap">
+    <div class="count-head">
+      <span class="section-tag">⏳ Falta poco</span>
+      <h2>Cuenta regresiva</h2>
+      <p id="count-sub">Para el gran momento de la revelación</p>
+    </div>
+    <div class="clock" id="clock">
+      <div class="unit"><span class="num" id="d">00</span><span class="lab">Días</span></div>
+      <div class="unit"><span class="num" id="h">00</span><span class="lab">Horas</span></div>
+      <div class="unit"><span class="num" id="m">00</span><span class="lab">Minutos</span></div>
+      <div class="unit"><span class="num" id="s">00</span><span class="lab">Segundos</span></div>
+    </div>
+    <div class="count-done" id="count-done" style="display:none">¡Es hora! El anfitrión revelará el secreto en cualquier momento… 💓</div>
+  </div>
+</section>
+
+<!-- ============================ 5 · REVELACIÓN ============================ -->
+<section id="revelacion">
+  <div class="wrap">
+    <div class="reveal-teaser card">
+      <div class="lock">🔒💝</div>
+      <span class="section-tag" style="margin-bottom:14px">La gran revelación</span>
+      <h2>El secreto mejor guardado</h2>
+      <p>El género real está sellado y a salvo — ni siquiera vive en esta página. Solo se revelará cuando demos la señal, en vivo y para todos a la vez.</p>
+      <div class="wait" id="reveal-wait">Esperando la señal de papás…</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="heart">Con todo nuestro amor,</div>
+  <div style="font-family:var(--font-display);font-weight:700;color:#3c3148;font-size:1.1rem;margin-top:2px">los futuros papás, 💕
+Carlos y Arianna </div>
+</footer>
+
+<!-- OVERLAY DE REVELACIÓN -->
+<div id="reveal-overlay">
+  <div class="countdown-num" id="cd-num"></div>
+  <div class="reveal-result" id="reveal-result">
+    <div class="big-em" id="result-em">💙</div>
+    <div class="it-is" id="result-title">¡Es un niño!</div>
+    <div class="baby-name" id="result-name">Fabián Augusto</div>
+    <div class="sub" id="result-sub">No podemos esperar a conocerte 💕</div>
+  </div>
+</div>
+
+<!-- PANEL DE ANFITRIÓN (solo con ?host=CLAVE) -->
+<div id="host-panel">
+  <div class="ttl">🎬 Panel del anfitrión</div>
+  <div class="hbtns">
+    <button class="btn-reveal" id="btn-reveal">💥 Revelar ahora</button>
+    <button class="btn-reset" id="btn-reset" title="Reiniciar revelación local">↺</button>
+  </div>
+  <div class="status" id="host-status">Listo para revelar cuando quieras.</div>
+</div>
+
+<script type="module">
+/* ===================================================================================
+   ⚙️  CONFIGURACIÓN — EDITA AQUÍ
+   =================================================================================== */
+
+// 1) Pega aquí la config de tu app web de Firebase (PASO 4 de la guía de arriba).
+//    Mientras tengan "TU_..." la página corre en MODO DEMOSTRACIÓN (votos locales).
+const FIREBASE_CONFIG = {
+  apiKey:            "TU_API_KEY",
+  authDomain:        "TU_PROYECTO.firebaseapp.com",
+  projectId:         "TU_PROYECTO",
+  storageBucket:     "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId:             "TU_APP_ID"
+};
+
+// 2) Cuándo empieza la cuenta regresiva (hora local). Formato: "AAAA-MM-DDTHH:MM:SS"
+const REVEAL_START_DATETIME = "2026-05-29T19:00:00";
+const COUNTDOWN_HOURS       = 72;          // duración de la cuenta regresiva
+
+// 3) Nombres del bebé (sí pueden ir aquí — son públicos a propósito).
+const BOY_NAME  = "Fabián Augusto";
+const GIRL_NAME = "Isabella Carolina";
+
+// 4) Clave secreta del anfitrión. Abre la app con  ?host=ESTA_CLAVE  para ver el panel
+//    con el botón "Revelar ahora". Cámbiala por algo solo tuyo.
+const HOST_SECRET_KEY = "miclave-2026";
+
+// ❌  El GÉNERO REAL no se escribe aquí. Vive en Firestore (reveal/secret) y las reglas
+//     impiden leerlo hasta que actives reveal/state.revealed = true.
+//     En MODO DEMOSTRACIÓN se usa un valor aleatorio solo para que puedas probar.
+
+/* ===================================================================================
+   (A partir de aquí normalmente no necesitas editar nada.)
+   =================================================================================== */
+
+const IS_DEMO = FIREBASE_CONFIG.apiKey.startsWith("TU_");
+
+/* ---------- aplicar nombres a la interfaz ---------- */
+document.getElementById('hero-boy-name').textContent  = BOY_NAME;
+document.getElementById('hero-girl-name').textContent = GIRL_NAME;
+
+/* ===================================================================================
+   🎊  MOTOR DE CONFETI (canvas, sin librerías)
+   =================================================================================== */
+const Confetti = (() => {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let burst = [];          // partículas temporales (votos / revelación)
+  let ambient = [];        // confeti suave de fondo, siempre presente
+  const PASTEL = ['#a9d4ff','#6fb6f5','#ffc1da','#f98fbd','#ffe9b0','#c9b8ff','#bff0d4'];
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.width  = Math.floor(innerWidth  * dpr);
+    H = canvas.height = Math.floor(innerHeight * dpr);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function makeAmbient(){
+    return {
+      x: Math.random()*innerWidth, y: Math.random()*innerHeight - innerHeight,
+      r: 3 + Math.random()*5, color: PASTEL[(Math.random()*PASTEL.length)|0],
+      vy: .3 + Math.random()*.6, vx: (Math.random()-.5)*.3,
+      rot: Math.random()*Math.PI, vr:(Math.random()-.5)*.02,
+      shape: Math.random()<.4?'heart':(Math.random()<.5?'circle':'rect'), op:.45+Math.random()*.3
+    };
+  }
+  if(!reduce){ ambient = Array.from({length: innerWidth<600?16:30}, makeAmbient); }
+
+  function heart(c,x,y,s){ c.beginPath(); const t=s/16;
+    c.moveTo(x,y+4*t); c.bezierCurveTo(x,y,x-8*t,y-2*t,x-8*t,y+4*t);
+    c.bezierCurveTo(x-8*t,y+9*t,x,y+12*t,x,y+16*t);
+    c.bezierCurveTo(x,y+12*t,x+8*t,y+9*t,x+8*t,y+4*t);
+    c.bezierCurveTo(x+8*t,y-2*t,x,y,x,y+4*t); c.closePath(); }
+
+  function draw(p){
+    ctx.save(); ctx.globalAlpha = p.op==null?1:p.op; ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color;
+    if(p.shape==='circle'){ ctx.beginPath(); ctx.arc(0,0,p.r,0,7); ctx.fill(); }
+    else if(p.shape==='heart'){ heart(ctx,0,-p.r, p.r*2.2); ctx.fill(); }
+    else { ctx.fillRect(-p.r, -p.r*0.6, p.r*2, p.r*1.2); }
+    ctx.restore();
+  }
+
+  function frame(){
+    ctx.clearRect(0,0,W,H);
+    // ambiente
+    for(const p of ambient){
+      p.y += p.vy; p.x += p.vx + Math.sin(p.y*0.01)*0.3; p.rot += p.vr;
+      if(p.y > innerHeight+20){ p.y = -20; p.x = Math.random()*innerWidth; }
+      draw(p);
+    }
+    // ráfagas
+    for(let i=burst.length-1;i>=0;i--){
+      const p = burst[i];
+      p.vy += 0.12; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vx *= 0.99; p.life--;
+      p.op = Math.max(0, Math.min(1, p.life/40));
+      draw(p);
+      if(p.life<=0 || p.y > innerHeight+60) burst.splice(i,1);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function spawnBurst(x, y, colors, n=70, power=11){
+    for(let i=0;i<n;i++){
+      const a = Math.random()*Math.PI*2, sp = Math.random()*power;
+      burst.push({
+        x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - power*0.5,
+        r: 3+Math.random()*6, color: colors[(Math.random()*colors.length)|0],
+        rot: Math.random()*7, vr:(Math.random()-.5)*0.3, life: 70+Math.random()*40,
+        shape: Math.random()<.45?'heart':(Math.random()<.5?'rect':'circle'), op:1
+      });
+    }
+  }
+  const BOY  = ['#a9d4ff','#6fb6f5','#3b87d6','#bfe0ff','#ffffff'];
+  const GIRL = ['#ffc1da','#f98fbd','#ec5f97','#ffd6e8','#ffffff'];
+
+  return {
+    teamBurst(team, x, y){ spawnBurst(x, y, team==='boy'?BOY:GIRL, 60, 10); },
+    celebrate(team, ms=4500){
+      const colors = team==='boy'?BOY:GIRL;
+      const end = performance.now()+ms;
+      (function loop(){
+        spawnBurst(Math.random()*innerWidth, -10, colors, 14, 6);
+        spawnBurst(innerWidth*0.2, innerHeight*0.5, colors, 10, 13);
+        spawnBurst(innerWidth*0.8, innerHeight*0.5, colors, 10, 13);
+        if(performance.now()<end) setTimeout(loop, 180);
+      })();
+    }
+  };
+})();
+
+/* ===================================================================================
+   🎈  GLOBOS FLOTANTES
+   =================================================================================== */
+(function balloons(){
+  const host = document.getElementById('bg-balloons');
+  const colors = [['#a9d4ff','#6fb6f5'],['#ffc1da','#f98fbd'],['#c9b8ff','#a98fe0'],['#bff0d4','#86d6a8'],['#ffe9b0','#ffd36b']];
+  const N = innerWidth<600?6:10;
+  for(let i=0;i<N;i++){
+    const [c1,c2] = colors[i%colors.length];
+    const el = document.createElement('div');
+    el.className='balloon';
+    const size = 46 + Math.random()*52;
+    el.style.width = size+'px';
+    el.style.left = (Math.random()*100)+'%';
+    el.style.animationDuration = (16 + Math.random()*16)+'s';
+    el.style.animationDelay = (-Math.random()*24)+'s';
+    el.style.opacity = (0.4 + Math.random()*0.3).toFixed(2);
+    el.innerHTML = `<svg viewBox="0 0 64 86"><defs><radialGradient id="g${i}" cx="38%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></radialGradient></defs>
+      <ellipse cx="32" cy="30" rx="26" ry="30" fill="url(#g${i})"/>
+      <path d="M32 60 l-4 6 h8 z" fill="${c2}"/>
+      <path d="M32 66 q6 10 0 20" stroke="${c2}" stroke-width="1.5" fill="none" opacity=".6"/></svg>`;
+    host.appendChild(el);
+  }
+})();
+
+/* ===================================================================================
+   🗄️  CAPA DE DATOS  (Firebase real  ·  o  demo local)
+   =================================================================================== */
+let DB = null;
+
+async function buildFirebaseDB(){
+  const appMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const app = appMod.initializeApp(FIREBASE_CONFIG);
+  const db = fs.getFirestore(app);
+  const votesCol = fs.collection(db, 'votes');
+  const stateDoc = fs.doc(db, 'reveal', 'state');
+  const secretDoc = fs.doc(db, 'reveal', 'secret');
+
+  return {
+    mode:'firebase',
+    onVotes(cb){
+      fs.onSnapshot(fs.query(votesCol, fs.orderBy('ts','asc')), s => {
+        cb(s.docs.map(d => d.data()));
+      }, err => { console.warn('votes snapshot:', err.message); });
+    },
+    async addVote(v){ await fs.addDoc(votesCol, { name:v.name, team:v.team, ts: fs.serverTimestamp() }); },
+    onReveal(cb){
+      fs.onSnapshot(stateDoc, d => cb(d.exists() ? !!d.data().revealed : false),
+        err => console.warn('reveal state:', err.message));
+    },
+    async getGender(){ const d = await fs.getDoc(secretDoc); return d.exists() ? d.data().gender : null; },
+    async triggerReveal(){ await fs.updateDoc(stateDoc, { revealed:true }); }
+  };
+}
+
+function buildDemoDB(){
+  const seed = [
+    {name:'Abuela Yoana', team:'girl'}, {name:'Tío Pirolo', team:'boy'},
+    {name:'Prima Sofia', team:'girl'}, {name:'Abuelo Ricky', team:'boy'},
+    {name:'Tía Maria', team:'girl'}, {name:'Abuelo Moe', team:'boy'},
+    {name:'Gaby', team:'girl'}
+  ].map((v,i)=>({...v, ts:i}));
+  let votes = JSON.parse(localStorage.getItem('gr_demo_votes') || 'null') || seed;
+  let revealed = false;
+  let voteCbs = [], revealCbs = [];
+  // género demo aleatorio (solo para probar; en producción lo decide Firestore)
+  const demoGender = localStorage.getItem('gr_demo_gender') || (Math.random()<.5?'boy':'girl');
+  localStorage.setItem('gr_demo_gender', demoGender);
+  const save = ()=> localStorage.setItem('gr_demo_votes', JSON.stringify(votes));
+  return {
+    mode:'demo',
+    onVotes(cb){ voteCbs.push(cb); cb(votes.slice()); },
+    async addVote(v){ votes.push({name:v.name, team:v.team, ts:Date.now()}); save(); voteCbs.forEach(cb=>cb(votes.slice())); },
+    onReveal(cb){ revealCbs.push(cb); cb(revealed); },
+    async getGender(){ return demoGender; },
+    async triggerReveal(){ revealed = true; revealCbs.forEach(cb=>cb(true)); }
+  };
+}
+
+/* ===================================================================================
+   📊  MARCADOR
+   =================================================================================== */
+let prevBoy = 0, prevGirl = 0;
+function renderBoard(votes){
+  const boy = votes.filter(v=>v.team==='boy');
+  const girl = votes.filter(v=>v.team==='girl');
+  const nb = boy.length, ng = girl.length, total = nb+ng;
+  const elB = document.getElementById('count-boy'), elG = document.getElementById('count-girl');
+  elB.textContent = nb; elG.textContent = ng;
+  if(nb!==prevBoy){ elB.classList.add('bump'); setTimeout(()=>elB.classList.remove('bump'),350); prevBoy=nb; }
+  if(ng!==prevGirl){ elG.classList.add('bump'); setTimeout(()=>elG.classList.remove('bump'),350); prevGirl=ng; }
+
+  const pB = total? Math.round(nb/total*100):50;
+  const pG = total? 100-pB:50;
+  document.getElementById('pct-boy').textContent  = pB+'%';
+  document.getElementById('pct-girl').textContent = pG+'%';
+  document.getElementById('fill-boy').style.width  = (total?pB:50)+'%';
+  document.getElementById('fill-girl').style.width = (total?pG:50)+'%';
+  document.getElementById('knot').style.left = (total?pB:50)+'%';
+  document.getElementById('total-votes').textContent = total + (total===1?' voto':' votos');
+
+  const chips = (arr, side) => arr.length
+    ? arr.map(v=>`<span class="chip">${escapeHtml(v.name)}</span>`).join('')
+    : '<span class="empty">Aún no hay votos…</span>';
+  document.getElementById('chips-boy').innerHTML  = chips(boy,'boy');
+  document.getElementById('chips-girl').innerHTML = chips(girl,'girl');
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ===================================================================================
+   🗳️  VOTACIÓN
+   =================================================================================== */
+const VOTE_KEY = 'gr_voted_v1';
+function setupVoting(){
+  const nameInput = document.getElementById('voter-name');
+  const form = document.getElementById('vote-form');
+  const votedState = document.getElementById('voted-state');
+  const note = document.getElementById('vote-note');
+
+  const existing = JSON.parse(localStorage.getItem(VOTE_KEY) || 'null');
+  if(existing){ showVoted(existing); }
+
+  document.querySelectorAll('.team-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const name = nameInput.value.trim();
+      if(!name){
+        nameInput.focus();
+        note.textContent = '✏️ Escribe tu nombre primero';
+        note.style.color = 'var(--pink-ink)';
+        nameInput.style.borderColor = 'var(--pink-3)';
+        return;
+      }
+      const team = btn.dataset.team;
+      // ráfaga de confeti desde el botón
+      const r = btn.getBoundingClientRect();
+      Confetti.teamBurst(team, r.left + r.width/2, r.top + r.height/2);
+
+      document.querySelectorAll('.team-btn').forEach(b=>b.disabled=true);
+      try{
+        await DB.addVote({ name, team });
+        const record = { name, team };
+        localStorage.setItem(VOTE_KEY, JSON.stringify(record));
+        setTimeout(()=>showVoted(record), 420);
+      }catch(err){
+        console.warn(err);
+        note.textContent = '😢 No se pudo guardar tu voto. Intenta de nuevo.';
+        document.querySelectorAll('.team-btn').forEach(b=>b.disabled=false);
+      }
+    });
+  });
+
+  function showVoted(record){
+    form.style.display = 'none';
+    votedState.classList.add('show');
+    document.getElementById('voted-name').textContent = record.name;
+    const pill = document.getElementById('voted-pill');
+    if(record.team==='boy'){ pill.textContent='💙 Equipo Niño'; pill.style.background='linear-gradient(160deg,var(--blue-3),var(--blue-4))'; }
+    else { pill.textContent='💗 Equipo Niña'; pill.style.background='linear-gradient(160deg,var(--pink-3),var(--pink-4))'; }
+  }
+}
+
+/* ===================================================================================
+   ⏳  CUENTA REGRESIVA
+   =================================================================================== */
+function setupCountdown(){
+  const start = new Date(REVEAL_START_DATETIME).getTime();
+  const target = start + COUNTDOWN_HOURS*3600*1000;
+  const els = { d:document.getElementById('d'), h:document.getElementById('h'), m:document.getElementById('m'), s:document.getElementById('s') };
+  const prev = { d:'', h:'', m:'', s:'' };
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function tick(){
+    let diff = target - Date.now();
+    if(diff <= 0){
+      document.getElementById('clock').style.display='none';
+      document.getElementById('count-done').style.display='block';
+      document.getElementById('count-sub').textContent = 'La espera terminó 💓';
+      return;
+    }
+    const d = Math.floor(diff/86400000); diff-=d*86400000;
+    const h = Math.floor(diff/3600000); diff-=h*3600000;
+    const m = Math.floor(diff/60000); diff-=m*60000;
+    const s = Math.floor(diff/1000);
+    const vals = { d:pad(d), h:pad(h), m:pad(m), s:pad(s) };
+    for(const k in vals){
+      if(vals[k]!==prev[k]){
+        els[k].textContent = vals[k];
+        els[k].classList.add('tick'); setTimeout(()=>els[k].classList.remove('tick'),250);
+        prev[k]=vals[k];
+      }
+    }
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+/* ===================================================================================
+   💥  REVELACIÓN
+   =================================================================================== */
+let revealDone = false;
+async function runReveal(){
+  if(revealDone) return; revealDone = true;
+  const gender = await DB.getGender();
+  if(gender!=='boy' && gender!=='girl'){
+    alert('No se pudo leer el género desde Firestore. Verifica que el documento reveal/secret exista y que las reglas permitan leerlo cuando revealed=true.');
+    revealDone = false; return;
+  }
+  const overlay = document.getElementById('reveal-overlay');
+  const cdNum = document.getElementById('cd-num');
+  const result = document.getElementById('reveal-result');
+  overlay.classList.add('show');
+  result.classList.remove('show');
+  document.body.style.overflow='hidden';
+
+  const seq = ['3','2','1','¡Ya!'];
+  let i = 0;
+  function step(){
+    if(i < seq.length){
+      cdNum.textContent = seq[i];
+      cdNum.classList.remove('anim'); void cdNum.offsetWidth; cdNum.classList.add('anim');
+      i++; setTimeout(step, 950);
+    } else {
+      cdNum.style.display='none';
+      overlay.classList.add(gender);
+      result.classList.add(gender,'show');
+      document.getElementById('result-em').textContent = gender==='boy'?'💙':'💗';
+      document.getElementById('result-title').textContent = gender==='boy'?'¡Es un niño!':'¡Es una niña!';
+      document.getElementById('result-name').textContent = gender==='boy'?BOY_NAME:GIRL_NAME;
+      Confetti.celebrate(gender, 6000);
+    }
+  }
+  setTimeout(step, 500);
+}
+
+function setupReveal(){
+  DB.onReveal(revealed => { if(revealed) runReveal(); });
+}
+
+/* ===================================================================================
+   🎬  PANEL DE ANFITRIÓN
+   =================================================================================== */
+function setupHost(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('host') !== HOST_SECRET_KEY) return;
+  const panel = document.getElementById('host-panel');
+  const status = document.getElementById('host-status');
+  panel.classList.add('show');
+  document.getElementById('btn-reveal').addEventListener('click', async (e)=>{
+    e.target.disabled = true;
+    status.textContent = 'Revelando… 💓';
+    try{ await DB.triggerReveal(); status.textContent = '¡Revelado para todos! 🎉'; }
+    catch(err){ console.warn(err); status.textContent = '⚠️ No se pudo (revisa reglas/escritura).'; e.target.disabled=false; }
+  });
+  document.getElementById('btn-reset').addEventListener('click', ()=>{
+    // solo limpia el estado local de prueba (no toca Firestore)
+    revealDone = false;
+    const ov = document.getElementById('reveal-overlay');
+    ov.className=''; ov.classList.remove('show');
+    document.getElementById('reveal-result').className='reveal-result';
+    document.getElementById('cd-num').style.display='';
+    document.body.style.overflow='';
+    status.textContent = 'Vista local reiniciada.';
+  });
+}
+
+/* ===================================================================================
+   🚀  ARRANQUE
+   =================================================================================== */
+(async function init(){
+  try{
+    if(IS_DEMO){
+      DB = buildDemoDB();
+      document.getElementById('demo-banner').classList.add('show');
+      document.body.style.paddingTop = '30px';
+    } else {
+      DB = await buildFirebaseDB();
+    }
+  }catch(err){
+    console.warn('Fallo al iniciar Firebase, usando modo demo:', err);
+    DB = buildDemoDB();
+    document.getElementById('demo-banner').classList.add('show');
+    document.body.style.paddingTop = '30px';
+  }
+  DB.onVotes(renderBoard);
+  setupVoting();
+  setupCountdown();
+  setupReveal();
+  setupHost();
+})();
+</script>
+</body>
+</html>

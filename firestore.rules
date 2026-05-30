@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ───── VOTOS ─────
+    // Todos pueden LEER y CREAR un voto. Nadie puede EDITAR ni BORRAR.
+    match /votes/{voteId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['name', 'team', 'ts'])
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 60
+                    && request.resource.data.team in ['boy', 'girl'];
+      allow update, delete: if false;
+    }
+
+    // ───── ESTADO DE LA REVELACIÓN ─────
+    // Todos pueden LEER (para enterarse en vivo cuando reveles).
+    // La escritura SOLO permite poner revealed = true (el anfitrión dispara).
+    // Así nadie puede deshacerla ni cambiar otros campos.
+    match /reveal/state {
+      allow read: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revealed'])
+                    && request.resource.data.revealed == true;
+      allow create, delete: if false;
+    }
+
+    // ───── GÉNERO SECRETO ─────
+    // NO se puede leer hasta que reveal/state.revealed == true.
+    // Nunca se puede escribir desde el cliente (lo pones tú en la consola).
+    match /reveal/secret {
+      allow read: if get(/databases/$(database)/documents/reveal/state).data.revealed == true;
+      allow write: if false;
+    }
+
+    // Todo lo demás: bloqueado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
